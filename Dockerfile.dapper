@@ -1,0 +1,24 @@
+FROM registry.suse.com/bci/golang:1.22
+
+RUN zypper -n rm container-suseconnect
+
+
+ENV DAPPER_ENV REPO TAG
+ENV DAPPER_SOURCE /go/src/github.com/harvester/packer-plugin-harvester
+ENV DAPPER_OUTPUT ./bin ./dist
+ENV DAPPER_DOCKER_SOCKET true
+ENV HOME ${DAPPER_SOURCE}
+
+COPY go.mod ${DAPPER_SOURCE}/go.mod
+COPY go.sum ${DAPPER_SOURCE}/go.sum
+WORKDIR ${DAPPER_SOURCE}
+
+RUN export HASHICORP_PACKER_PLUGIN_SDK_VERSION="$(go list -m github.com/hashicorp/packer-plugin-sdk | cut -d " " -f2)" ; \
+  go get github.com/hashicorp/packer-plugin-sdk@${HASHICORP_PACKER_PLUGIN_SDK_VERSION} ; \
+  go install github.com/hashicorp/packer-plugin-sdk/cmd/packer-sdc@${HASHICORP_PACKER_PLUGIN_SDK_VERSION}
+
+RUN packer-sdc fix . && go mod tidy  # https://github.com/hashicorp/packer-plugin-sdk/issues/187
+RUN go mod download
+
+ENTRYPOINT ["./scripts/entry"]
+CMD ["ci"]
